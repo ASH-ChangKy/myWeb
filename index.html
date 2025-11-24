@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>实时摄像头识别页码 PDF 阅读器</title>
+  <title>ページ番号同期 PDF リーダー（カメラ連動）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PDF.js 2.16.105 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
-  <!-- Tesseract.js（本地 OCR） -->
+  <!-- Tesseract.js -->
   <script src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
 
   <style>
@@ -19,310 +19,502 @@
       color: #222;
       padding: 10px;
     }
-    h1 { text-align: center; font-size: 1.2rem; margin-bottom: 10px; }
-
+    h1 {
+      font-size: 1.1rem;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
     .section {
       background: #fff;
       border-radius: 8px;
       padding: 10px;
       margin-bottom: 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
-    .section-title { font-size: 0.95rem; margin-bottom: 6px; font-weight: 600; }
+    .section-title {
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    input[type="file"],
+    input[type="text"] {
+      font-size: 0.85rem;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button.primary { background: #007bff; color: #fff; }
+    button.danger  { background: #dc3545; color: #fff; }
+    button.secondary { background: #6c757d; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: default; }
 
-    #pdf-container { background:#333;border-radius:8px;overflow:hidden;margin-top:6px;text-align:center; }
-    canvas#pdf-canvas { width:100%;background:#777; }
+    #pdf-info { font-size: 0.8rem; margin-top: 4px; }
+
+    #pdf-container {
+      background: #333;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 6px;
+      text-align: center;
+      max-height: 75vh;
+    }
+    #pdf-canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #777;
+    }
 
     #page-controls {
-      margin-top: 6px; display:flex; justify-content:center; gap:10px;
-      font-size:0.85rem; flex-wrap:wrap;
+      margin-top: 6px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #page-indicator { min-width: 100px; text-align: center; }
+
+    #camera-view {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+      max-height: 260px;
+      margin-top: 6px;
+    }
+    #video {
+      width: 100%;
+      height: auto;
+      display: block;
     }
 
-    #camera-view { position:relative; background:#000; border-radius:8px; overflow:hidden; max-height:300px; }
-    #video { width:100%; display:block; }
-
-    #ocr-log { font-size:0.8rem; margin-top:6px; min-height:1.2em; }
-
-    button {
-      border:none; border-radius:999px; padding:6px 12px;
-      font-size:0.85rem; cursor:pointer; white-space:nowrap;
+    #ocr-log {
+      font-size: 0.8rem;
+      margin-top: 6px;
+      min-height: 3em;
     }
-    button.primary { background:#007bff; color:#fff; }
-    button.danger  { background:#dc3545; color:#fff; }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* 読書モード（なんちゃって全画面） */
+    body.reading-mode {
+      padding: 0;
+      background: #000;
+      color: #eee;
+    }
+    body.reading-mode h1,
+    body.reading-mode .camera-section,
+    body.reading-mode .pdf-load-controls {
+      display: none;
+    }
+    body.reading-mode .pdf-section {
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    body.reading-mode #pdf-container {
+      border-radius: 0;
+      max-height: 100vh;
+      height: 100vh;
+    }
+    body.reading-mode #page-controls {
+      position: fixed;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      justify-content: center;
+      z-index: 10;
+    }
   </style>
 </head>
 
 <body>
-<h1>📘 实时摄像头识别页码 → PDF 自动翻页</h1>
+  <h1>📘 カメラで紙のページ番号を読み取り → PDF を自動同期</h1>
 
-<!-- ========== PDF 载入模块 ========== -->
-<div class="section">
-  <div class="section-title">1️⃣ 加载 PDF</div>
-
-  <input type="file" id="file-input" accept="application/pdf" />
-  <br/><br/>
-  <input id="url-input" placeholder="或输入在线 PDF 地址" style="width:70%;padding:6px;border:1px solid #ccc;border-radius:6px;" />
-  <button class="primary" id="load-url-btn">加载 URL</button>
-
-  <div id="pdf-info" style="margin-top:6px;font-size:0.8rem;">尚未加载 PDF</div>
-  <div id="pdf-container"><canvas id="pdf-canvas"></canvas></div>
-
-  <div id="page-controls">
-    <button id="prev-page-btn">上一页</button>
-    <span id="page-indicator">第 0 / 0 页</span>
-    <button id="next-page-btn">下一页</button>
-  </div>
-</div>
-
-<!-- ========== 摄像头实时 OCR 模块 ========== -->
-<div class="section">
-  <div class="section-title">2️⃣ 实时识别纸面页码（自动翻页）</div>
-
-  <button class="primary" id="toggle-camera-btn">开启摄像头</button>
-
-  <div id="camera-view">
-    <video id="video" autoplay playsinline muted></video>
+  <div class="top-bar">
+    <button class="secondary" id="reading-mode-btn">読書モードにする</button>
   </div>
 
-  <div id="ocr-log">状态：摄像头未开启</div>
-</div>
+  <!-- PDF 読み込み & 表示 -->
+  <div class="section pdf-section">
+    <div class="pdf-load-controls">
+      <div class="section-title">1️⃣ PDF を読み込む</div>
+      <div class="row" style="margin-bottom:6px;">
+        <label style="font-size:0.85rem;">
+          ファイルから:
+          <input type="file" id="file-input" accept="application/pdf" />
+        </label>
+      </div>
+      <div class="row">
+        <input
+          type="text"
+          id="url-input"
+          placeholder="または PDF の URL（https://...pdf）"
+        />
+        <button class="primary" id="load-url-btn">URL 読み込み</button>
+      </div>
+      <div id="pdf-info">まだ PDF が読み込まれていません</div>
+    </div>
 
-<!-- 隐藏 canvas，用于 OCR 截图 -->
-<canvas id="capture-canvas" style="display:none;"></canvas>
+    <div id="pdf-container">
+      <canvas id="pdf-canvas"></canvas>
+    </div>
 
-<script>
-/* ======= PDF.js 初始化 ======= */
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-pdfjsLib.disableWorker = true;
+    <div id="page-controls">
+      <button id="prev-page-btn">前のページ</button>
+      <div id="page-indicator">ページ 0 / 0</div>
+      <button id="next-page-btn">次のページ</button>
+    </div>
+  </div>
 
-let pdfDoc = null;
-let currentPage = 1;
-let totalPages = 0;
+  <!-- カメラ + リアルタイム OCR -->
+  <div class="section camera-section">
+    <div class="section-title">2️⃣ カメラで紙のページ番号を読み取る（自動ページめくり）</div>
+    <button class="primary" id="toggle-camera-btn">カメラをオンにする</button>
 
-const pdfCanvas = document.getElementById("pdf-canvas");
-const pdfCtx = pdfCanvas.getContext("2d");
-const pageIndicatorEl = document.getElementById("page-indicator");
-const prevBtn = document.getElementById("prev-page-btn");
-const nextBtn = document.getElementById("next-page-btn");
+    <div id="camera-view">
+      <video id="video" autoplay playsinline muted></video>
+    </div>
 
-function updatePageIndicator() {
-  pageIndicatorEl.textContent = `第 ${totalPages ? currentPage : 0} / ${totalPages || 0} 页`;
-}
+    <div id="ocr-log">状態：カメラはオフです</div>
+    <div class="hint">
+      使い方：
+      <br>・紙の本のページの近くに大きく数字を書いてください（例：12, 23, 145）
+      <br>・スマホのカメラで数字が画面中央に来るようにかざします
+      <br>・同じ数字が連続で認識された場合、PDF がそのページに自動ジャンプします
+      <br>・カメラ ON 中は「前 / 次」ボタンは無効になります
+    </div>
+  </div>
 
-async function renderPage(num) {
-  if (!pdfDoc) return;
-  const page = await pdfDoc.getPage(num);
+  <!-- OCR 用の隠しキャンバス -->
+  <canvas id="capture-canvas" style="display:none;"></canvas>
 
-  const viewport = page.getViewport({ scale: 1.4 });
-  pdfCanvas.width = viewport.width;
-  pdfCanvas.height = viewport.height;
+  <script>
+    // ===== PDF.js 初期化 =====
+    var pdfjsLib = window["pdfjsLib"];
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+    pdfjsLib.disableWorker = true; // iOS Safari 対策
 
-  await page.render({ canvasContext: pdfCtx, viewport }).promise;
-  currentPage = num;
-  updatePageIndicator();
-}
+    var pdfDoc = null;
+    var currentPage = 1;
+    var totalPages = 0;
 
-function jumpToPage(num) {
-  if (!pdfDoc) return;
-  if (num < 1 || num > totalPages) return;
-  renderPage(num);
-}
+    var pdfCanvas = document.getElementById("pdf-canvas");
+    var pdfCtx = pdfCanvas.getContext("2d");
+    var pdfInfoEl = document.getElementById("pdf-info");
+    var pageIndicatorEl = document.getElementById("page-indicator");
+    var prevBtn = document.getElementById("prev-page-btn");
+    var nextBtn = document.getElementById("next-page-btn");
 
-/* ======= PDF 加载 ======= */
-document.getElementById("file-input").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => loadPdfFromData(ev.target.result, file.name);
-  reader.readAsArrayBuffer(file);
-});
-
-document.getElementById("load-url-btn").addEventListener("click", () => {
-  loadPdfFromUrl(document.getElementById("url-input").value.trim());
-});
-
-async function loadPdfFromData(data, label) {
-  const loadingTask = pdfjsLib.getDocument({ data });
-  pdfDoc = await loadingTask.promise;
-
-  totalPages = pdfDoc.numPages;
-  currentPage = 1;
-  document.getElementById("pdf-info").textContent = `${label} | 共 ${totalPages} 页`;
-  renderPage(1);
-}
-
-async function loadPdfFromUrl(url) {
-  const loadingTask = pdfjsLib.getDocument({ url });
-  pdfDoc = await loadingTask.promise;
-
-  totalPages = pdfDoc.numPages;
-  currentPage = 1;
-  document.getElementById("pdf-info").textContent = `${url} | 共 ${totalPages} 页`;
-  renderPage(1);
-}
-
-/* 手动翻页（摄像头开启时禁用） */
-prevBtn.onclick = () => { if (!cameraOn && currentPage > 1) renderPage(currentPage - 1); };
-nextBtn.onclick = () => { if (!cameraOn && currentPage < totalPages) renderPage(currentPage + 1); };
-
-/* ======= 摄像头实时 OCR ======= */
-let cameraOn = false;
-let mediaStream = null;
-const videoEl = document.getElementById("video");
-const captureCanvas = document.getElementById("capture-canvas");
-const captureCtx = captureCanvas.getContext("2d");
-const toggleCameraBtn = document.getElementById("toggle-camera-btn");
-const ocrLog = document.getElementById("ocr-log");
-
-let ocrTimer = null;       // 定时器：定期做 OCR
-let lastPageByOcr = null;  // 上一次识别到的页码（用于防抖）
-
-async function startCamera() {
-  if (cameraOn) return;
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert("当前浏览器不支持摄像头");
-    return;
-  }
-
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } }, // 后置摄像头优先
-      audio: false,
-    });
-    videoEl.srcObject = mediaStream;
-    cameraOn = true;
-    toggleCameraBtn.textContent = "关闭摄像头";
-    toggleCameraBtn.classList.add("danger");
-    ocrLog.textContent = "状态：摄像头已开启，正在等待识别…";
-
-    // 摄像头开启时，不允许手动翻页
-    prevBtn.disabled = true;
-    nextBtn.disabled = true;
-
-    // 开始定时 OCR（例如每 1500ms 识别一次）
-    startOcrLoop(1500);
-  } catch (e) {
-    console.error(e);
-    alert("无法开启摄像头：" + e.name + " / " + e.message + "\n请检查 Safari 的相机权限");
-  }
-}
-
-function stopCamera() {
-  if (mediaStream) {
-    mediaStream.getTracks().forEach((t) => t.stop());
-  }
-  mediaStream = null;
-  cameraOn = false;
-  videoEl.srcObject = null;
-  toggleCameraBtn.textContent = "开启摄像头";
-  toggleCameraBtn.classList.remove("danger");
-
-  ocrLog.textContent = "状态：摄像头未开启";
-  prevBtn.disabled = false;
-  nextBtn.disabled = false;
-
-  // 停止 OCR 定时任务
-  if (ocrTimer) {
-    clearInterval(ocrTimer);
-    ocrTimer = null;
-  }
-}
-
-// 摄像头开关按钮
-toggleCameraBtn.onclick = () => {
-  if (cameraOn) stopCamera();
-  else startCamera();
-};
-
-/* ======= 实时 OCR 循环 ======= */
-function startOcrLoop(intervalMs) {
-  if (ocrTimer) {
-    clearInterval(ocrTimer);
-  }
-  ocrTimer = setInterval(runOcrOnce, intervalMs);
-}
-
-async function runOcrOnce() {
-  if (!cameraOn || !mediaStream) return;
-  if (!pdfDoc) {
-    ocrLog.textContent = "状态：请先加载 PDF 再开始识别";
-    return;
-  }
-
-  // 避免 Tesseract 还在跑时又启动一轮
-  if (runOcrOnce.running) return;
-  runOcrOnce.running = true;
-
-  try {
-    const vw = videoEl.videoWidth;
-    const vh = videoEl.videoHeight;
-    if (!vw || !vh) {
-      ocrLog.textContent = "状态：摄像头画面准备中…";
-      return;
+    function updatePageIndicator() {
+      var text = "ページ " + (totalPages ? currentPage : 0) + " / " + (totalPages || 0);
+      pageIndicatorEl.textContent = text;
     }
 
-    // 把视频画面缩放到合适大小
-    const targetWidth = 480;
-    const scale = targetWidth / vw;
-    const targetHeight = Math.round(vh * scale);
+    function renderPage(pageNum) {
+      if (!pdfDoc) return;
+      pdfDoc.getPage(pageNum).then(function(page) {
+        var viewport = page.getViewport({ scale: 1.4 });
+        pdfCanvas.width = viewport.width;
+        pdfCanvas.height = viewport.height;
+        var renderCtx = { canvasContext: pdfCtx, viewport: viewport };
+        page.render(renderCtx).promise.then(function() {
+          currentPage = pageNum;
+          updatePageIndicator();
+        });
+      }).catch(function(err) {
+        console.error("Render page error:", err);
+      });
+    }
 
-    captureCanvas.width = targetWidth;
-    captureCanvas.height = targetHeight;
-    captureCtx.drawImage(videoEl, 0, 0, targetWidth, targetHeight);
+    function jumpToPage(pageNum) {
+      if (!pdfDoc) return;
+      if (pageNum < 1 || pageNum > totalPages) return;
+      renderPage(pageNum);
+    }
 
-    const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.8);
+    function loadPdfFromData(data, label) {
+      var loadingTask = pdfjsLib.getDocument({ data: data });
+      loadingTask.promise.then(function(doc) {
+        pdfDoc = doc;
+        totalPages = pdfDoc.numPages;
+        currentPage = 1;
+        pdfInfoEl.textContent = label + " | 全 " + totalPages + " ページ";
+        renderPage(1);
+      }).catch(function(e) {
+        console.error(e);
+        alert("PDF の読み込みに失敗しました。");
+      });
+    }
 
-    ocrLog.textContent = "状态：识别中…";
+    function loadPdfFromUrl(url) {
+      if (!url) {
+        alert("PDF の URL を入力してください。");
+        return;
+      }
+      var loadingTask = pdfjsLib.getDocument({ url: url });
+      loadingTask.promise.then(function(doc) {
+        pdfDoc = doc;
+        totalPages = pdfDoc.numPages;
+        currentPage = 1;
+        pdfInfoEl.textContent = url + " | 全 " + totalPages + " ページ";
+        renderPage(1);
+      }).catch(function(e) {
+        console.error(e);
+        alert("URL から PDF を読み込めませんでした。CORS 制限の可能性があります。");
+      });
+    }
 
-    const result = await Tesseract.recognize(dataUrl, "eng", {
-      tessedit_char_whitelist: "0123456789",
+    document.getElementById("file-input").addEventListener("change", function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        loadPdfFromData(ev.target.result, file.name);
+      };
+      reader.readAsArrayBuffer(file);
     });
 
-    const rawText = (result.data && result.data.text) || "";
-    const normalized = rawText.replace(/\s+/g, "");
-    const match = normalized.match(/\d{1,4}/); // 匹配 1~4 位数字
+    document.getElementById("load-url-btn").addEventListener("click", function() {
+      var url = document.getElementById("url-input").value.trim();
+      loadPdfFromUrl(url);
+    });
 
-    if (!match) {
-      ocrLog.textContent = "状态：未识别到数字，请让纸上的数字更大、更清晰";
-      return;
+    prevBtn.addEventListener("click", function() {
+      if (cameraOn) {
+        alert("カメラ ON 中は手動ページめくりは使えません。");
+        return;
+      }
+      if (!pdfDoc || currentPage <= 1) return;
+      renderPage(currentPage - 1);
+    });
+
+    nextBtn.addEventListener("click", function() {
+      if (cameraOn) {
+        alert("カメラ ON 中は手動ページめくりは使えません。");
+        return;
+      }
+      if (!pdfDoc || currentPage >= totalPages) return;
+      renderPage(currentPage + 1);
+    });
+
+    // ===== 読書モード =====
+    var readingModeBtn = document.getElementById("reading-mode-btn");
+    var isReadingMode = false;
+
+    function enterReadingMode() {
+      document.body.classList.add("reading-mode");
+      readingModeBtn.textContent = "読書モードを解除";
     }
 
-    const pageNum = parseInt(match[0], 10);
-    if (!Number.isInteger(pageNum) || pageNum <= 0) {
-      ocrLog.textContent = "状态：识别到的数字无效：" + match[0];
-      return;
+    function exitReadingMode() {
+      document.body.classList.remove("reading-mode");
+      readingModeBtn.textContent = "読書モードにする";
     }
 
-    if (totalPages && pageNum > totalPages) {
-      ocrLog.textContent =
-        "状态：识别到页码 " + pageNum + "，但 PDF 只有 " + totalPages + " 页";
-      return;
+    readingModeBtn.addEventListener("click", function() {
+      isReadingMode = !isReadingMode;
+      if (isReadingMode) {
+        if (cameraOn) stopCamera();
+        enterReadingMode();
+      } else {
+        exitReadingMode();
+      }
+    });
+
+    // ===== カメラ & OCR =====
+    var videoEl = document.getElementById("video");
+    var captureCanvas = document.getElementById("capture-canvas");
+    var captureCtx = captureCanvas.getContext("2d");
+    var toggleCameraBtn = document.getElementById("toggle-camera-btn");
+    var ocrLog = document.getElementById("ocr-log");
+
+    var cameraOn = false;
+    var mediaStream = null;
+    var ocrTimer = null;
+    var lastPageByOcr = null;
+    var ocrRunning = false;
+
+    function startCamera() {
+      if (cameraOn) return;
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("このブラウザはカメラ API に対応していません。");
+        return;
+      }
+      if (!pdfDoc) {
+        alert("まず PDF を読み込んでください。");
+        return;
+      }
+
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false
+      }).then(function(stream) {
+        mediaStream = stream;
+        videoEl.srcObject = stream;
+        cameraOn = true;
+        toggleCameraBtn.textContent = "カメラをオフにする";
+        toggleCameraBtn.classList.add("danger");
+        ocrLog.innerHTML = "状態：カメラ ON。数字を画面中央に入れてください。";
+
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+
+        startOcrLoop(2000); // 2秒ごとに OCR
+      }).catch(function(e) {
+        console.error(e);
+        alert("カメラを起動できませんでした。権限を確認してください。\n" + e.name + " / " + e.message);
+      });
     }
 
-    // 如果识别结果和当前页一样，就不翻页，避免闪烁
-    if (pageNum === currentPage) {
-      ocrLog.textContent = "状态：识别页码 " + pageNum + "（已在该页）";
-      return;
+    function stopCamera() {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(function(t) { t.stop(); });
+      }
+      videoEl.srcObject = null;
+      mediaStream = null;
+      cameraOn = false;
+      toggleCameraBtn.textContent = "カメラをオンにする";
+      toggleCameraBtn.classList.remove("danger");
+      ocrLog.innerHTML = "状態：カメラはオフです";
+
+      prevBtn.disabled = false;
+      nextBtn.disabled = false;
+
+      if (ocrTimer) {
+        clearInterval(ocrTimer);
+        ocrTimer = null;
+      }
     }
 
-    // 简单防抖：识别结果连续两次相同才真正翻页
-    if (lastPageByOcr === pageNum) {
-      ocrLog.textContent = "状态：确认页码 " + pageNum + "，正在跳转 PDF 页面…";
-      jumpToPage(pageNum);
-    } else {
-      ocrLog.textContent = "状态：首次识别到页码 " + pageNum + "，等待下一次确认…";
-      lastPageByOcr = pageNum;
+    toggleCameraBtn.addEventListener("click", function() {
+      if (cameraOn) stopCamera();
+      else startCamera();
+    });
+
+    function startOcrLoop(intervalMs) {
+      if (ocrTimer) clearInterval(ocrTimer);
+      ocrTimer = setInterval(runOcrOnce, intervalMs);
     }
 
-  } catch (e) {
-    console.error(e);
-    ocrLog.textContent = "状态：识别失败：" + e.message;
-  } finally {
-    runOcrOnce.running = false;
-  }
-}
-</script>
+    function runOcrOnce() {
+      if (!cameraOn || !mediaStream) return;
+      if (!pdfDoc) return;
+      if (ocrRunning) return;
+      ocrRunning = true;
+
+      var vw = videoEl.videoWidth;
+      var vh = videoEl.videoHeight;
+      if (!vw || !vh) {
+        ocrLog.innerHTML = "状態：カメラ映像の準備中…";
+        ocrRunning = false;
+        return;
+      }
+
+      // 画面中央 50% を切り出し
+      var cropW = vw * 0.5;
+      var cropH = vh * 0.5;
+      var cropX = (vw - cropW) / 2;
+      var cropY = (vh - cropH) / 2;
+
+      var targetWidth = 480;
+      var scale = targetWidth / cropW;
+      var targetHeight = Math.round(cropH * scale);
+
+      captureCanvas.width = targetWidth;
+      captureCanvas.height = targetHeight;
+
+      captureCtx.drawImage(
+        videoEl,
+        cropX, cropY, cropW, cropH,
+        0, 0, targetWidth, targetHeight
+      );
+
+      var dataUrl = captureCanvas.toDataURL("image/jpeg", 0.8);
+      ocrLog.innerHTML = "状態：数字を認識中…";
+
+      Tesseract.recognize(dataUrl, "eng", {
+        tessedit_char_whitelist: "0123456789"
+      }).then(function(result) {
+        var raw = (result.data && result.data.text) ? result.data.text : "";
+        var compact = raw.replace(/\s+/g, "");
+        ocrLog.innerHTML = "OCR 生テキスト: 「" + (raw || "（空）」") +
+                           "<br>空白除去: 「" + (compact || "（空）」") + "<br>";
+
+        var match = compact.match(/\d{1,4}/);
+        if (!match) {
+          ocrLog.innerHTML += "数字が見つかりませんでした。もっと大きく中央に書いてください。";
+          ocrRunning = false;
+          return;
+        }
+
+        var page = parseInt(match[0], 10);
+        ocrLog.innerHTML += "候補ページ番号: " + page + "<br>";
+
+        if (!page || page <= 0) {
+          ocrLog.innerHTML += "→ ページ番号として不正です。";
+          ocrRunning = false;
+          return;
+        }
+        if (page > totalPages) {
+          ocrLog.innerHTML += "→ PDF は " + totalPages + " ページまでなので範囲外です。";
+          ocrRunning = false;
+          return;
+        }
+        if (page === currentPage) {
+          ocrLog.innerHTML += "→ すでにそのページを表示中です。";
+          ocrRunning = false;
+          return;
+        }
+
+        if (lastPageByOcr === page) {
+          ocrLog.innerHTML += "→ 同じ数字を連続で検出したため、ページ " + page + " に移動します。";
+          jumpToPage(page);
+          lastPageByOcr = null;
+        } else {
+          ocrLog.innerHTML += "→ 初回認識。もう一度同じ数字が検出されたらページをめくります。";
+          lastPageByOcr = page;
+        }
+
+        ocrRunning = false;
+      }).catch(function(err) {
+        console.error(err);
+        ocrLog.innerHTML = "OCR エラー: " + err.message;
+        ocrRunning = false;
+      });
+    }
+  </script>
 </body>
 </html>

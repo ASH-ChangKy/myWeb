@@ -7,45 +7,42 @@
 
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-  <!-- jsQR（QRコード解析） -->
+
+  <!-- jsQR（QRコード解析）-->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui;
-      background: #e3f7f5;          /* 冷色淡绿色 */
+      background: #f5f5f5;
       padding: 10px;
       color: #222;
     }
-
     h1 {
       text-align: center;
       font-size: 1.2rem;
       margin-bottom: 8px;
     }
-
     .top-bar {
       display: flex;
       justify-content: flex-end;
       gap: 8px;
       margin-bottom: 8px;
     }
-
     .section {
-      background: #ffffff;
+      background: #fff;
       padding: 10px;
       margin-bottom: 14px;
       border-radius: 10px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
-
     .section h2 {
       font-size: 0.95rem;
       margin-bottom: 6px;
     }
-
     .row {
       display: flex;
       flex-wrap: wrap;
@@ -53,21 +50,18 @@
       margin-bottom: 8px;
       align-items: center;
     }
-
     #pdf-canvas {
       width: 100%;
-      background: #fdfdfd;
+      background: #888;
       border-radius: 8px;
       display: block;
     }
-
     #video {
       width: 100%;
       border-radius: 8px;
       background: #000;
       display: block;
     }
-
     button {
       padding: 6px 14px;
       border-radius: 999px;
@@ -75,16 +69,12 @@
       font-size: 0.9rem;
       cursor: pointer;
     }
-
     button.primary { background: #007bff; color: #fff; }
     button.danger  { background: #d9534f; color: #fff; }
-    button.secondary { background:#5a6268; color:#fff; }
-
     button:disabled {
       opacity: 0.5;
       cursor: default;
     }
-
     input[type="text"] {
       flex: 1;
       padding: 6px;
@@ -92,7 +82,6 @@
       border: 1px solid #ccc;
       font-size: 0.9rem;
     }
-
     #pdf-info, #qr-log {
       font-size: 0.85rem;
       color: #555;
@@ -100,104 +89,64 @@
       min-height: 1.2em;
     }
 
-    /* ========= 読書モード（擬似全画面） ========= */
+    /* ===== 読書モード（擬似フルスクリーン） ===== */
     body.reading-mode {
       padding: 0;
-      background: #e3f7f5;
-      color: #111;
+      background: #ffffff;   /* ⬅ 背景を白に戻す */
+      color: #222;
     }
-
     body.reading-mode h1,
     body.reading-mode .pdf-load-controls {
       display: none;
     }
-
     body.reading-mode .pdf-section {
       margin: 0;
       border-radius: 0;
       box-shadow: none;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;   /* PDFを縦方向ほぼ中央に */
-      align-items: center;
-      background: #e3f7f5;
     }
-
     body.reading-mode #pdf-canvas {
       border-radius: 0;
-      max-height: 100vh;
+      display: block;
+      margin: 0 auto;
     }
 
-    /* ページ移動ボタン（読書モード時は固定） */
-    .page-controls-row {
-      margin-top: 8px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-    }
-
+    /* 底部翻页条：透明背景，尽量不抢画面 */
     body.reading-mode .page-controls-row {
       position: fixed;
-      bottom: 10px;
+      bottom: 8px;
       left: 0;
       right: 0;
       justify-content: center;
       z-index: 20;
-      pointer-events: auto;
+      background: transparent;  /* ⬅ 不再铺大黑条 */
+      padding: 0;
     }
 
-    /* ========= カメラエリア ========= */
-    .camera-section {
-      position: relative;
-    }
-
-    .camera-header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-
-    .camera-mini-toggle {
-      display: none;
-      font-size: 1.4rem;
-      text-align: center;
-      cursor: pointer;
-    }
-
-    /* 読書モード時：カメラを画面下中央の小窓にする */
+    /* 全屏时的小摄像头窗口：贴底中间，面积很小 */
     body.reading-mode .camera-section {
       position: fixed;
+      bottom: 44px;        /* 在翻页按钮上方一点 */
       left: 50%;
       transform: translateX(-50%);
-      bottom: 56px;              /* ページボタンより少し上 */
-      width: 180px;
-      margin: 0;
-      background: rgba(0,0,0,0.82);
-      color: #eee;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-      border-radius: 10px;
-      padding: 6px 8px;
+      width: 120px;
       z-index: 30;
+      padding: 4px;
+      margin: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      background: rgba(0,0,0,0.85);
+      border-radius: 10px;
     }
-
     body.reading-mode .camera-section h2 {
       display: none;
     }
-
     body.reading-mode #video {
       border-radius: 6px;
-      max-height: 100px;
     }
-
     body.reading-mode #qr-log {
       font-size: 0.7rem;
       color: #ddd;
     }
-
     body.reading-mode .top-bar {
       position: fixed;
       top: 6px;
@@ -205,21 +154,35 @@
       z-index: 40;
     }
 
-    /* 折りたたみ状態：動画とログを隠して、アイコンだけ出す */
-    .camera-section.collapsed #video,
-    .camera-section.collapsed #qr-log {
+    /* 小摄像头图标（折りたたんだ状態） */
+    #camera-mini-icon {
+      position: fixed;
+      bottom: 44px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 32px;
+      height: 32px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      border-radius: 999px;
       display: none;
+      justify-content: center;
+      align-items: center;
+      font-size: 20px;
+      z-index: 35;
+      cursor: pointer;
     }
 
-    .camera-section.collapsed .camera-mini-toggle {
-      display: block;
-    }
-
-    /* PCで見たとき上限 */
-    @media (min-width: 768px) {
-      body.reading-mode #pdf-canvas {
-        max-width: 90vw;
-      }
+    /* 全屏时，摄像头开/关按钮跟着在右下小位置 */
+    body.reading-mode #toggle-camera {
+      position: fixed;
+      bottom: 44px;
+      left: 50%;
+      transform: translateX(60px); /* 图标右边一点点 */
+      z-index: 36;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.8rem;
     }
   </style>
 </head>
@@ -227,7 +190,7 @@
   <h1>📘 QRコード連動 PDFビューア</h1>
 
   <div class="top-bar">
-    <button id="reading-mode-btn" class="primary">読書モードにする</button>
+    <button id="reading-mode-btn" class="primary" disabled>読書モードにする</button>
   </div>
 
   <!-- PDF ロード + 表示 -->
@@ -246,7 +209,7 @@
 
     <canvas id="pdf-canvas"></canvas>
 
-    <div class="row page-controls-row" id="page-controls-row">
+    <div class="row page-controls-row" style="margin-top:8px; display:none;">
       <button id="prev-btn">前へ</button>
       <div id="page-num" style="min-width:90px;text-align:center;">0 / 0</div>
       <button id="next-btn">次へ</button>
@@ -254,17 +217,18 @@
   </div>
 
   <!-- QR カメラ -->
-  <div class="section camera-section" id="camera-section">
+  <div class="section camera-section">
     <h2>② QRコードでページ移動</h2>
-    <div class="camera-header-row">
-      <button id="collapse-camera-btn" class="secondary">🔒 折りたたみ</button>
-      <button id="toggle-camera" class="primary">カメラ起動</button>
+    <div class="row">
+      <button id="toggle-camera" class="primary" disabled>カメラ起動</button>
     </div>
-    <div class="camera-mini-toggle" id="camera-mini-toggle">📷</div>
     <video id="video" autoplay playsinline muted></video>
     <canvas id="qr-canvas" style="display:none;"></canvas>
     <div id="qr-log">状態：カメラ停止中</div>
   </div>
+
+  <!-- 折りたたみ時の小さなカメラアイコン -->
+  <div id="camera-mini-icon">📷</div>
 
   <script>
     /* ========== PDF.js 設定 ========== */
@@ -275,30 +239,24 @@
     var pdfDoc = null;
     var currentPage = 1;
     var totalPages = 0;
+    var pdfLoaded = false;
 
     var pdfCanvas = document.getElementById("pdf-canvas");
     var pdfCtx = pdfCanvas.getContext("2d");
     var pdfInfoEl = document.getElementById("pdf-info");
     var pageNumEl = document.getElementById("page-num");
-    var pageControlsRow = document.getElementById("page-controls-row");
+    var pageControlsRow = document.querySelector(".page-controls-row");
+
+    var readingModeBtn = document.getElementById("reading-mode-btn");
+    var toggleCameraBtn = document.getElementById("toggle-camera");
+
+    var cameraSection = document.querySelector(".camera-section");
+    var cameraMiniIcon = document.getElementById("camera-mini-icon");
+    var cameraCollapsed = false;
 
     function updatePageIndicator() {
       var text = currentPage + " / " + totalPages;
       pageNumEl.textContent = text;
-    }
-
-    function updatePageControlsVisibility() {
-      // PDF がないときはボタンを隠す
-      if (!pdfDoc) {
-        pageControlsRow.style.display = "none";
-        return;
-      }
-      // 読書モード ＋ カメラON のときは隠す
-      if (isReadingMode && cameraOn) {
-        pageControlsRow.style.display = "none";
-      } else {
-        pageControlsRow.style.display = "flex";
-      }
     }
 
     function renderPage(num) {
@@ -317,6 +275,58 @@
       });
     }
 
+    function updatePageControlsVisibility() {
+      if (!pdfLoaded || !pdfDoc) {
+        pageControlsRow.style.display = "none";
+        return;
+      }
+      var inReading = document.body.classList.contains("reading-mode");
+      if (inReading && cameraOn) {
+        pageControlsRow.style.display = "none";
+      } else {
+        pageControlsRow.style.display = "flex";
+      }
+    }
+
+    function updateCameraUi() {
+      var inReading = document.body.classList.contains("reading-mode");
+      if (!inReading) {
+        cameraSection.style.display = "block";
+        cameraMiniIcon.style.display = "none";
+        return;
+      }
+      if (!cameraOn) {
+        cameraCollapsed = false;
+        cameraSection.style.display = "none";
+        cameraMiniIcon.style.display = "none";
+      } else {
+        if (cameraCollapsed) {
+          cameraSection.style.display = "none";
+          cameraMiniIcon.style.display = "flex";
+        } else {
+          cameraSection.style.display = "block";
+          cameraMiniIcon.style.display = "none";
+        }
+      }
+    }
+
+    function onPdfLoaded(label) {
+      pdfLoaded = true;
+      totalPages = pdfDoc.numPages;
+      currentPage = 1;
+      pdfInfoEl.textContent = label + " | " + totalPages + "ページ";
+
+      pageControlsRow.style.display = "flex";
+
+      readingModeBtn.disabled = false;
+      toggleCameraBtn.disabled = false;
+
+      startCamera();
+      renderPage(1);
+      updatePageControlsVisibility();
+      updateCameraUi();
+    }
+
     function loadPdfFromFile(file) {
       var reader = new FileReader();
       reader.onload = function(ev) {
@@ -324,11 +334,7 @@
         var task = pdfjsLib.getDocument({ data: data });
         task.promise.then(function(doc) {
           pdfDoc = doc;
-          totalPages = pdfDoc.numPages;
-          currentPage = 1;
-          pdfInfoEl.textContent = file.name + " | " + totalPages + "ページ";
-          renderPage(1);
-          updatePageControlsVisibility();
+          onPdfLoaded(file.name);
         }).catch(function(e) {
           console.error(e);
           alert("PDFの読み込みに失敗しました。");
@@ -345,11 +351,7 @@
       var task = pdfjsLib.getDocument({ url: url });
       task.promise.then(function(doc) {
         pdfDoc = doc;
-        totalPages = pdfDoc.numPages;
-        currentPage = 1;
-        pdfInfoEl.textContent = url + " | " + totalPages + "ページ";
-        renderPage(1);
-        updatePageControlsVisibility();
+        onPdfLoaded(url);
       }).catch(function(e) {
         console.error(e);
         alert("URLからPDFを読み込めませんでした。CORS制限の可能性があります。");
@@ -376,23 +378,25 @@
       if (currentPage < totalPages) renderPage(currentPage + 1);
     });
 
-    /* ========== 読書モード切り替え ========== */
-    var readingModeBtn = document.getElementById("reading-mode-btn");
+    /* 読書モード */
     var isReadingMode = false;
 
     function enterReadingMode() {
       document.body.classList.add("reading-mode");
       readingModeBtn.textContent = "読書モードを解除";
       updatePageControlsVisibility();
+      updateCameraUi();
     }
 
     function exitReadingMode() {
       document.body.classList.remove("reading-mode");
       readingModeBtn.textContent = "読書モードにする";
       updatePageControlsVisibility();
+      updateCameraUi();
     }
 
     readingModeBtn.addEventListener("click", function() {
+      if (!pdfLoaded) return;
       isReadingMode = !isReadingMode;
       if (isReadingMode) {
         enterReadingMode();
@@ -401,7 +405,7 @@
       }
     });
 
-    /* ========== QR カメラ & jsQR ========== */
+    /* QR カメラ & jsQR */
     var cameraOn = false;
     var stream = null;
 
@@ -409,12 +413,6 @@
     var qrCanvas = document.getElementById("qr-canvas");
     var qrCtx = qrCanvas.getContext("2d");
     var qrLog = document.getElementById("qr-log");
-    var toggleCameraBtn = document.getElementById("toggle-camera");
-
-    var cameraSection = document.getElementById("camera-section");
-    var collapseBtn = document.getElementById("collapse-camera-btn");
-    var cameraMiniToggle = document.getElementById("camera-mini-toggle");
-    var isCameraCollapsed = false;
 
     var lastScanData = "";
     var lastScanTime = 0;
@@ -425,10 +423,7 @@
         alert("このブラウザはカメラに対応していません。");
         return;
       }
-      if (!pdfDoc) {
-        alert("先にPDFを読み込んでください。");
-        return;
-      }
+      if (!pdfLoaded || !pdfDoc) return;
 
       navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
@@ -440,7 +435,9 @@
         toggleCameraBtn.textContent = "カメラ停止";
         toggleCameraBtn.classList.add("danger");
         qrLog.textContent = "状態：カメラ起動中（QRコードをかざしてください）";
+
         updatePageControlsVisibility();
+        updateCameraUi();
         scanLoop();
       }).catch(function(e) {
         console.error(e);
@@ -458,31 +455,31 @@
       toggleCameraBtn.textContent = "カメラ起動";
       toggleCameraBtn.classList.remove("danger");
       qrLog.textContent = "状態：カメラ停止中";
+
+      cameraCollapsed = false;
       updatePageControlsVisibility();
+      updateCameraUi();
     }
 
-    toggleCameraBtn.addEventListener("click", function() {
+    toggleCameraBtn.addEventListener("click", function(e) {
+      if (!pdfLoaded) return;
       if (cameraOn) stopCamera();
       else startCamera();
+      e.stopPropagation();
     });
 
-    /* 折りたたみ：小さなアイコンだけにする */
-    collapseBtn.addEventListener("click", function() {
-      isCameraCollapsed = !isCameraCollapsed;
-      if (isCameraCollapsed) {
-        cameraSection.classList.add("collapsed");
-        collapseBtn.textContent = "🔓 展開";
-      } else {
-        cameraSection.classList.remove("collapsed");
-        collapseBtn.textContent = "🔒 折りたたみ";
-      }
+    cameraSection.addEventListener("click", function(e) {
+      var inReading = document.body.classList.contains("reading-mode");
+      if (!inReading || !cameraOn) return;
+      if (e.target.id === "toggle-camera") return;
+      cameraCollapsed = true;
+      updateCameraUi();
     });
 
-    cameraMiniToggle.addEventListener("click", function() {
-      // アイコンをタップすると再展開
-      isCameraCollapsed = false;
-      cameraSection.classList.remove("collapsed");
-      collapseBtn.textContent = "🔒 折りたたみ";
+    cameraMiniIcon.addEventListener("click", function() {
+      if (!cameraOn) return;
+      cameraCollapsed = false;
+      updateCameraUi();
     });
 
     function scanLoop() {
@@ -505,7 +502,6 @@
         var now = Date.now();
         var dataStr = String(code.data);
 
-        // 防抖：同じ内容を短時間に何度も検出したら無視
         if (dataStr !== lastScanData || now - lastScanTime > 1500) {
           lastScanData = dataStr;
           lastScanTime = now;
@@ -527,9 +523,6 @@
 
       requestAnimationFrame(scanLoop);
     }
-
-    // 初期状態ではページボタンを隠しておく
-    updatePageControlsVisibility();
   </script>
 </body>
 </html>

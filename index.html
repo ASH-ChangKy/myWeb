@@ -8,11 +8,13 @@
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
-  <!-- jsQR（QRコード解析）：用 jsDelivr -->
+  <!-- jsQR（QRコード解析）-->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui;
       background: #f5f5f5;
@@ -90,8 +92,8 @@
     /* ===== 読書モード（擬似フルスクリーン） ===== */
     body.reading-mode {
       padding: 0;
-      background: #000;
-      color: #eee;
+      background: #ffffff;   /* ⬅ 背景を白に戻す */
+      color: #222;
     }
     body.reading-mode h1,
     body.reading-mode .pdf-load-controls {
@@ -101,33 +103,37 @@
       margin: 0;
       border-radius: 0;
       box-shadow: none;
+      min-height: 100vh;
     }
     body.reading-mode #pdf-canvas {
       border-radius: 0;
+      display: block;
+      margin: 0 auto;
     }
-    /* 底部翻页条：更薄、贴底 */
+
+    /* 底部翻页条：透明背景，尽量不抢画面 */
     body.reading-mode .page-controls-row {
       position: fixed;
-      bottom: 0;
+      bottom: 8px;
       left: 0;
       right: 0;
       justify-content: center;
       z-index: 20;
-      background: rgba(0,0,0,0.6);
-      padding: 4px 0;
+      background: transparent;  /* ⬅ 不再铺大黑条 */
+      padding: 0;
     }
 
-    /* 全屏时的摄像头小窗口：底部中间，小一点 */
+    /* 全屏时的小摄像头窗口：贴底中间，面积很小 */
     body.reading-mode .camera-section {
       position: fixed;
-      bottom: 56px;  /* 在翻页条上面一点 */
+      bottom: 44px;        /* 在翻页按钮上方一点 */
       left: 50%;
       transform: translateX(-50%);
       width: 120px;
       z-index: 30;
       padding: 4px;
       margin: 0;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
       background: rgba(0,0,0,0.85);
       border-radius: 10px;
     }
@@ -148,31 +154,31 @@
       z-index: 40;
     }
 
-    /* 小摄像头图标（折叠后显示） */
+    /* 小摄像头图标（折りたたんだ状態） */
     #camera-mini-icon {
       position: fixed;
-      bottom: 56px;
+      bottom: 44px;
       left: 50%;
       transform: translateX(-50%);
-      width: 38px;
-      height: 38px;
+      width: 32px;
+      height: 32px;
       background: rgba(0,0,0,0.75);
       color: #fff;
       border-radius: 999px;
       display: none;
       justify-content: center;
       align-items: center;
-      font-size: 22px;
+      font-size: 20px;
       z-index: 35;
       cursor: pointer;
     }
 
-    /* 全屏时，摄像头开/关按钮跟随小摄像头一起在底部中间附近 */
+    /* 全屏时，摄像头开/关按钮跟着在右下小位置 */
     body.reading-mode #toggle-camera {
       position: fixed;
-      bottom: 56px;
+      bottom: 44px;
       left: 50%;
-      transform: translateX(60px); /* 图标右侧一点 */
+      transform: translateX(60px); /* 图标右边一点点 */
       z-index: 36;
       padding: 4px 10px;
       border-radius: 20px;
@@ -184,7 +190,6 @@
   <h1>📘 QRコード連動 PDFビューア</h1>
 
   <div class="top-bar">
-    <!-- 初始: PDF 未读取, 禁用 -->
     <button id="reading-mode-btn" class="primary" disabled>読書モードにする</button>
   </div>
 
@@ -204,7 +209,6 @@
 
     <canvas id="pdf-canvas"></canvas>
 
-    <!-- 初始隐藏，PDF读取成功后显示 -->
     <div class="row page-controls-row" style="margin-top:8px; display:none;">
       <button id="prev-btn">前へ</button>
       <div id="page-num" style="min-width:90px;text-align:center;">0 / 0</div>
@@ -216,7 +220,6 @@
   <div class="section camera-section">
     <h2>② QRコードでページ移動</h2>
     <div class="row">
-      <!-- 初始禁用，PDF读取后启用 -->
       <button id="toggle-camera" class="primary" disabled>カメラ起動</button>
     </div>
     <video id="video" autoplay playsinline muted></video>
@@ -224,7 +227,7 @@
     <div id="qr-log">状態：カメラ停止中</div>
   </div>
 
-  <!-- 折叠之后的小摄像头图标 -->
+  <!-- 折りたたみ時の小さなカメラアイコン -->
   <div id="camera-mini-icon">📷</div>
 
   <script>
@@ -236,7 +239,7 @@
     var pdfDoc = null;
     var currentPage = 1;
     var totalPages = 0;
-    var pdfLoaded = false; // 是否已加载 PDF
+    var pdfLoaded = false;
 
     var pdfCanvas = document.getElementById("pdf-canvas");
     var pdfCtx = pdfCanvas.getContext("2d");
@@ -249,7 +252,7 @@
 
     var cameraSection = document.querySelector(".camera-section");
     var cameraMiniIcon = document.getElementById("camera-mini-icon");
-    var cameraCollapsed = false; // 全屏时，小窗口是否折叠
+    var cameraCollapsed = false;
 
     function updatePageIndicator() {
       var text = currentPage + " / " + totalPages;
@@ -272,7 +275,6 @@
       });
     }
 
-    /* 根据 PDF 是否加载、读书模式、摄像头状态 控制 翻页按钮显示 */
     function updatePageControlsVisibility() {
       if (!pdfLoaded || !pdfDoc) {
         pageControlsRow.style.display = "none";
@@ -280,25 +282,20 @@
       }
       var inReading = document.body.classList.contains("reading-mode");
       if (inReading && cameraOn) {
-        // 全屏 + 摄像头开 → 不显示前一页/后一页
         pageControlsRow.style.display = "none";
       } else {
         pageControlsRow.style.display = "flex";
       }
     }
 
-    /* 根据模式和折叠状态更新摄像头 UI */
     function updateCameraUi() {
       var inReading = document.body.classList.contains("reading-mode");
       if (!inReading) {
-        // 普通模式：和原来一样，大块摄像头区域
         cameraSection.style.display = "block";
         cameraMiniIcon.style.display = "none";
         return;
       }
-      // 读书模式
       if (!cameraOn) {
-        // 摄像头关：小窗口和图标都隐藏，只保留按钮
         cameraCollapsed = false;
         cameraSection.style.display = "none";
         cameraMiniIcon.style.display = "none";
@@ -319,16 +316,12 @@
       currentPage = 1;
       pdfInfoEl.textContent = label + " | " + totalPages + "ページ";
 
-      // 显示翻页行
       pageControlsRow.style.display = "flex";
 
-      // 启用读书模式和摄像头按钮
       readingModeBtn.disabled = false;
       toggleCameraBtn.disabled = false;
 
-      // 自动开启摄像头
       startCamera();
-
       renderPage(1);
       updatePageControlsVisibility();
       updateCameraUi();
@@ -385,7 +378,7 @@
       if (currentPage < totalPages) renderPage(currentPage + 1);
     });
 
-    /* ========== 読書モード切り替え ========== */
+    /* 読書モード */
     var isReadingMode = false;
 
     function enterReadingMode() {
@@ -398,13 +391,12 @@
     function exitReadingMode() {
       document.body.classList.remove("reading-mode");
       readingModeBtn.textContent = "読書モードにする";
-      // 普通模式下：翻页按钮根据 pdfLoaded 显示
       updatePageControlsVisibility();
       updateCameraUi();
     }
 
     readingModeBtn.addEventListener("click", function() {
-      if (!pdfLoaded) return; // 理论上已经 disabled 防住
+      if (!pdfLoaded) return;
       isReadingMode = !isReadingMode;
       if (isReadingMode) {
         enterReadingMode();
@@ -413,7 +405,7 @@
       }
     });
 
-    /* ========== QR カメラ & jsQR ========== */
+    /* QR カメラ & jsQR */
     var cameraOn = false;
     var stream = null;
 
@@ -431,9 +423,7 @@
         alert("このブラウザはカメラに対応していません。");
         return;
       }
-      if (!pdfLoaded || !pdfDoc) {
-        return;
-      }
+      if (!pdfLoaded || !pdfDoc) return;
 
       navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
@@ -475,19 +465,17 @@
       if (!pdfLoaded) return;
       if (cameraOn) stopCamera();
       else startCamera();
-      e.stopPropagation(); // 避免触发折叠事件
+      e.stopPropagation();
     });
 
-    // 全屏时点击摄像头小窗口 → 折叠为小图标
     cameraSection.addEventListener("click", function(e) {
       var inReading = document.body.classList.contains("reading-mode");
       if (!inReading || !cameraOn) return;
-      if (e.target.id === "toggle-camera") return; // 点击按钮不折叠
+      if (e.target.id === "toggle-camera") return;
       cameraCollapsed = true;
       updateCameraUi();
     });
 
-    // 点击小图标 → 展开摄像头
     cameraMiniIcon.addEventListener("click", function() {
       if (!cameraOn) return;
       cameraCollapsed = false;
@@ -514,7 +502,6 @@
         var now = Date.now();
         var dataStr = String(code.data);
 
-        // 防抖：同一内容且时间间隔过短则忽略
         if (dataStr !== lastScanData || now - lastScanTime > 1500) {
           lastScanData = dataStr;
           lastScanTime = now;

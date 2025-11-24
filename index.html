@@ -5,7 +5,7 @@
   <title>摄像头识别页码 PDF 阅读器</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PDF.js -->
+  <!-- PDF.js 2.16.105（稳定版 UMD） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
   <!-- Tesseract.js（本地 OCR） -->
@@ -205,8 +205,10 @@
   <script>
     // ========= PDF.js 基本设置 =========
     const pdfjsLib = window['pdfjsLib']; // 2.x 会在 window 上挂 pdfjsLib
+    // 使用 CDN worker；为兼容 iOS Safari，再关闭 worker（禁用多线程）
     pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    pdfjsLib.disableWorker = true;
 
     let pdfDoc = null;
     let currentPage = 1;
@@ -280,7 +282,7 @@
         await renderPage(currentPage);
       } catch (e) {
         console.error(e);
-        alert('URL PDF 加载失败，请确认链接可直接访问 PDF');
+        alert('URL PDF 加载失败，请确认链接可直接访问 PDF（可能是 CORS 限制）');
       }
     }
 
@@ -329,9 +331,15 @@
 
     async function startCamera() {
       if (cameraOn) return;
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('当前浏览器不支持摄像头（navigator.mediaDevices 不存在）');
+        return;
+      }
+
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+          video: { facingMode: { ideal: 'environment' } },
           audio: false,
         });
         videoEl.srcObject = mediaStream;
@@ -343,7 +351,7 @@
         setManualPageButtonsEnabled(false); // 开摄像头时禁用手动翻页
       } catch (e) {
         console.error(e);
-        alert('无法开启摄像头，请检查浏览器权限');
+        alert('无法开启摄像头：' + e.name + ' / ' + e.message + '\n请检查 Safari 相机权限');
       }
     }
 

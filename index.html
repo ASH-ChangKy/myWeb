@@ -87,14 +87,13 @@
       min-height: 1.2em;
     }
 
-    /* 読書モード（伪全屏） */
+    /* ===== 読書モード（伪全屏） ===== */
     body.reading-mode {
       padding: 0;
       background: #000;
       color: #eee;
     }
     body.reading-mode h1,
-    body.reading-mode .camera-section,
     body.reading-mode .pdf-load-controls {
       display: none;
     }
@@ -112,7 +111,36 @@
       left: 0;
       right: 0;
       justify-content: center;
-      z-index: 10;
+      z-index: 20;
+    }
+    /* 相机在读书模式下变成右下角小窗口 */
+    body.reading-mode .camera-section {
+      position: fixed;
+      right: 8px;
+      bottom: 60px;
+      width: 140px;
+      z-index: 30;
+      padding: 6px;
+      margin: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.85);
+      border-radius: 10px;
+    }
+    body.reading-mode .camera-section h2 {
+      display: none;
+    }
+    body.reading-mode #video {
+      border-radius: 6px;
+    }
+    body.reading-mode #qr-log {
+      font-size: 0.7rem;
+      color: #ddd;
+    }
+    body.reading-mode .top-bar {
+      position: fixed;
+      top: 6px;
+      right: 6px;
+      z-index: 40;
     }
   </style>
 </head>
@@ -267,7 +295,7 @@
     readingModeBtn.addEventListener("click", function() {
       isReadingMode = !isReadingMode;
       if (isReadingMode) {
-        if (cameraOn) stopCamera(); // 全屏时自动关闭摄像头
+        // 这里不再强制 stopCamera()，读书模式也可以用相机
         enterReadingMode();
       } else {
         exitReadingMode();
@@ -361,7 +389,7 @@
 
           var pageNum = parseInt(dataStr, 10);
           if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-            // ⭐ 关键：如果页码没变，就不翻页（不重绘，不闪）
+            // ⭐ 如果页码没变，不翻页
             if (pageNum === currentPage) {
               qrLog.textContent = "QR検出：" + dataStr + "（同じページのため何もしません）";
             } else {

@@ -1,408 +1,315 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>QRコード連動 PDFビューア</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8" />
+<title>QRコードでページ同期 PDFリーダー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
-  <!-- jsQR（QRコード解析）：用 jsDelivr -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- jsQR -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui;
-      background: #f5f5f5;
-      padding: 10px;
-      color: #222;
-    }
-    h1 {
-      text-align: center;
-      font-size: 1.2rem;
-      margin-bottom: 8px;
-    }
-    .top-bar {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .section {
-      background: #fff;
-      padding: 10px;
-      margin-bottom: 14px;
-      border-radius: 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    }
-    .section h2 {
-      font-size: 0.95rem;
-      margin-bottom: 6px;
-    }
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 8px;
-      align-items: center;
-    }
-    #pdf-canvas {
-      width: 100%;
-      background: #888;
-      border-radius: 8px;
-      display: block;
-    }
-    #video {
-      width: 100%;
-      border-radius: 8px;
-      background: #000;
-      display: block;
-    }
-    button {
-      padding: 6px 14px;
-      border-radius: 999px;
-      border: none;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-    button.primary { background: #007bff; color: #fff; }
-    button.danger  { background: #d9534f; color: #fff; }
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    input[type="text"] {
-      flex: 1;
-      padding: 6px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-size: 0.9rem;
-    }
-    #pdf-info, #qr-log {
-      font-size: 0.85rem;
-      color: #555;
-      margin-top: 4px;
-      min-height: 1.2em;
-    }
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:#f4f4f4;color:#222;padding:10px;
+}
 
-    /* ===== 読書モード（伪全屏） ===== */
-    body.reading-mode {
-      padding: 0;
-      background: #000;
-      color: #eee;
-    }
-    body.reading-mode h1,
-    body.reading-mode .pdf-load-controls {
-      display: none;
-    }
-    body.reading-mode .pdf-section {
-      margin: 0;
-      border-radius: 0;
-      box-shadow: none;
-    }
-    body.reading-mode #pdf-canvas {
-      border-radius: 0;
-    }
-    body.reading-mode .page-controls-row {
-      position: fixed;
-      bottom: 8px;
-      left: 0;
-      right: 0;
-      justify-content: center;
-      z-index: 20;
-    }
-    /* 相机在读书模式下变成右下角小窗口 */
-    body.reading-mode .camera-section {
-      position: fixed;
-      right: 8px;
-      bottom: 60px;
-      width: 140px;
-      z-index: 30;
-      padding: 6px;
-      margin: 0;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-      background: rgba(0,0,0,0.85);
-      border-radius: 10px;
-    }
-    body.reading-mode .camera-section h2 {
-      display: none;
-    }
-    body.reading-mode #video {
-      border-radius: 6px;
-    }
-    body.reading-mode #qr-log {
-      font-size: 0.7rem;
-      color: #ddd;
-    }
-    body.reading-mode .top-bar {
-      position: fixed;
-      top: 6px;
-      right: 6px;
-      z-index: 40;
-    }
-  </style>
+h1{text-align:center;font-size:1.3rem;margin-bottom:12px;}
+
+/* ------ PDFコンテナ ------ */
+#pdf-container{
+  background:#222;margin-top:8px;border-radius:8px;overflow:hidden;
+}
+#pdf-canvas{width:100%;background:#666;display:block;}
+
+#page-info{font-size:0.85rem;margin-top:4px;}
+
+/* ------ 下部のページ操作バー ------ */
+.page-controls-row{
+  margin-top:8px;
+  display:none; /* PDF読み込み前は非表示 */
+  gap:10px;
+}
+.page-controls-row button{
+  padding:6px 12px;border:none;border-radius:6px;background:#007bff;color:#fff;
+}
+#page-num{padding-top:6px;font-size:0.9rem;min-width:70px;text-align:center;}
+
+/* 全画面モードの下部バーを薄く */
+body.reading-mode .page-controls-row{
+  position:fixed;bottom:0;left:0;right:0;
+  height:48px;
+  background:rgba(0,0,0,0.55);
+  display:flex !important;
+  justify-content:center;align-items:center;
+  z-index:50;
+}
+
+/* ------ ミニカメラウィンドウ ------ */
+#mini-camera-wrapper{
+  position:fixed;
+  bottom:58px;
+  left:50%;
+  transform:translateX(-50%);
+  width:140px;height:90px;
+  background:#000;border-radius:8px;
+  overflow:hidden;
+  box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  z-index:60;
+  display:none;
+}
+#mini-video{
+  width:100%;height:100%;object-fit:cover;
+}
+
+/* 折り畳んだ後のアイコン */
+#camera-icon-badge{
+  position:fixed;
+  bottom:60px;
+  left:50%;
+  transform:translateX(-50%);
+  width:42px;height:42px;
+  background:rgba(0,0,0,0.7);
+  color:white;font-size:22px;
+  border-radius:999px;
+  display:none;
+  justify-content:center;align-items:center;
+  z-index:60;
+  cursor:pointer;
+}
+
+/* PDF操作ボタン */
+button.primary{background:#007bff;color:#fff;border:none;border-radius:6px;padding:6px 12px;}
+button.danger{background:#c62828;color:#fff;border:none;border-radius:6px;padding:6px 12px;}
+
+</style>
 </head>
 <body>
-  <h1>📘 QRコード連動 PDFビューア</h1>
 
-  <div class="top-bar">
-    <button id="reading-mode-btn" class="primary">読書モードにする</button>
+<h1>📘 QRコード同期 PDFリーダー</h1>
+
+<!-- 1. PDF読み込み -->
+<div>
+  <div style="margin-bottom:6px;">
+    <input type="file" id="file-input" accept="application/pdf" />
+    <span style="font-size:0.8rem;color:#777;">← ローカルPDFを選択</span>
   </div>
 
-  <!-- PDF ロード + 表示 -->
-  <div class="section pdf-section">
-    <div class="pdf-load-controls">
-      <h2>① PDFファイルを読み込む</h2>
-      <div class="row">
-        <input type="file" id="file-input" accept="application/pdf" />
-      </div>
-      <div class="row">
-        <input id="url-input" type="text" placeholder="PDFのURL（https://...pdf）" />
-        <button class="primary" id="load-url-btn">URL読込</button>
-      </div>
-      <div id="pdf-info">PDF未読込</div>
-    </div>
+  <div style="display:flex;gap:8px;">
+    <input id="pdf-url" type="text" placeholder="またはPDF URL" style="flex:1;padding:6px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;" />
+    <button class="primary" id="load-url-btn">URL読込</button>
+  </div>
 
+  <div id="page-info">PDF未読込</div>
+
+  <div id="pdf-container">
     <canvas id="pdf-canvas"></canvas>
-
-    <div class="row page-controls-row" style="margin-top:8px;">
-      <button id="prev-btn">前へ</button>
-      <div id="page-num" style="min-width:90px;text-align:center;">0 / 0</div>
-      <button id="next-btn">次へ</button>
-    </div>
   </div>
 
-  <!-- QR カメラ -->
-  <div class="section camera-section">
-    <h2>② QRコードでページ移動</h2>
-    <div class="row">
-      <button id="toggle-camera" class="primary">カメラ起動</button>
-    </div>
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="qr-canvas" style="display:none;"></canvas>
-    <div id="qr-log">状態：カメラ停止中</div>
+  <div class="page-controls-row">
+    <button id="prev-btn">前へ</button>
+    <div id="page-num">0 / 0</div>
+    <button id="next-btn">次へ</button>
   </div>
+</div>
 
-  <script>
-    /* ========== PDF.js 設定 ========== */
-    var pdfjsLib = window["pdfjsLib"];
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+<!-- 2. 全画面ボタン -->
+<button id="fullscreen-btn" class="primary" style="margin-top:10px;">📖 全画面表示</button>
 
-    var pdfDoc = null;
-    var currentPage = 1;
-    var totalPages = 0;
+<!-- 3. カメラ小窓 -->
+<div id="mini-camera-wrapper">
+  <video id="mini-video" autoplay playsinline muted></video>
+</div>
 
-    var pdfCanvas = document.getElementById("pdf-canvas");
-    var pdfCtx = pdfCanvas.getContext("2d");
-    var pdfInfoEl = document.getElementById("pdf-info");
-    var pageNumEl = document.getElementById("page-num");
+<div id="camera-icon-badge">📷</div>
 
-    function updatePageIndicator() {
-      var text = currentPage + " / " + totalPages;
-      pageNumEl.textContent = text;
-    }
+<script>
+/* ===========================
+   PDF.js 基本設定
+=========================== */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
-    function renderPage(num) {
-      if (!pdfDoc) return;
-      pdfDoc.getPage(num).then(function(page) {
-        var viewport = page.getViewport({ scale: 1.4 });
-        pdfCanvas.width = viewport.width;
-        pdfCanvas.height = viewport.height;
-        var renderCtx = { canvasContext: pdfCtx, viewport: viewport };
-        page.render(renderCtx).promise.then(function() {
-          currentPage = num;
-          updatePageIndicator();
-        });
-      }).catch(function(err) {
-        console.error("Render page error:", err);
-      });
-    }
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
 
-    function loadPdfFromFile(file) {
-      var reader = new FileReader();
-      reader.onload = function(ev) {
-        var data = ev.target.result;
-        var task = pdfjsLib.getDocument({ data: data });
-        task.promise.then(function(doc) {
-          pdfDoc = doc;
-          totalPages = pdfDoc.numPages;
-          currentPage = 1;
-          pdfInfoEl.textContent = file.name + " | " + totalPages + "ページ";
-          renderPage(1);
-        }).catch(function(e) {
-          console.error(e);
-          alert("PDFの読み込みに失敗しました。");
-        });
-      };
-      reader.readAsArrayBuffer(file);
-    }
+const pdfCanvas = document.getElementById("pdf-canvas");
+const pdfCtx = pdfCanvas.getContext("2d");
+const pageInfo = document.getElementById("page-info");
+const pageNumEl = document.getElementById("page-num");
+const pageControlsRow = document.querySelector(".page-controls-row");
 
-    function loadPdfFromUrl(url) {
-      if (!url) {
-        alert("PDFのURLを入力してください。");
-        return;
-      }
-      var task = pdfjsLib.getDocument({ url: url });
-      task.promise.then(function(doc) {
-        pdfDoc = doc;
-        totalPages = pdfDoc.numPages;
-        currentPage = 1;
-        pdfInfoEl.textContent = url + " | " + totalPages + "ページ";
-        renderPage(1);
-      }).catch(function(e) {
-        console.error(e);
-        alert("URLからPDFを読み込めませんでした。CORS制限の可能性があります。");
-      });
-    }
+/* ページ番号更新 */
+function updatePageNum() {
+  pageNumEl.textContent = `${currentPage} / ${totalPages}`;
+}
 
-    document.getElementById("file-input").addEventListener("change", function(e) {
-      var file = e.target.files[0];
-      if (file) loadPdfFromFile(file);
+/* ページ描画 */
+async function renderPage(n) {
+  if (!pdfDoc) return;
+  const page = await pdfDoc.getPage(n);
+  const viewport = page.getViewport({ scale: 1.4 });
+
+  pdfCanvas.width = viewport.width;
+  pdfCanvas.height = viewport.height;
+
+  await page.render({
+    canvasContext: pdfCtx,
+    viewport
+  }).promise;
+
+  currentPage = n;
+  updatePageNum();
+}
+
+/* ページジャンプ */
+function jumpToPage(n) {
+  if (n < 1 || n > totalPages) return;
+  if (n === currentPage) return; // 同じページなら何もしない（チラつき防止）
+  renderPage(n);
+}
+
+/* PDF読み込み共通処理 */
+function afterPdfLoaded(label){
+  totalPages = pdfDoc.numPages;
+  currentPage = 1;
+  pageInfo.textContent = `${label} | ${totalPages}ページ`;
+  pageControlsRow.style.display = "flex";
+  renderPage(1);
+}
+
+/* ローカルPDF読み込み */
+document.getElementById("file-input").addEventListener("change", e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    pdfjsLib.getDocument({data:ev.target.result}).promise.then(doc=>{
+      pdfDoc = doc;
+      afterPdfLoaded(file.name);
     });
+  };
+  reader.readAsArrayBuffer(file);
+});
 
-    document.getElementById("load-url-btn").addEventListener("click", function() {
-      var url = document.getElementById("url-input").value.trim();
-      loadPdfFromUrl(url);
+/* URL PDF読み込み */
+document.getElementById("load-url-btn").addEventListener("click",()=>{
+  const url = document.getElementById("pdf-url").value.trim();
+  if(!url){ alert("PDFのURLを入力してください"); return; }
+
+  pdfjsLib.getDocument({url}).promise.then(doc=>{
+    pdfDoc = doc;
+    afterPdfLoaded(url);
+  });
+});
+
+/* 前後ページ */
+document.getElementById("prev-btn").addEventListener("click",()=>{
+  jumpToPage(currentPage - 1);
+});
+document.getElementById("next-btn").addEventListener("click",()=>{
+  jumpToPage(currentPage + 1);
+});
+
+/* ===========================
+   全画面表示
+=========================== */
+const fsBtn = document.getElementById("fullscreen-btn");
+fsBtn.addEventListener("click",()=>{
+  document.body.classList.toggle("reading-mode");
+});
+
+/* ===========================
+   カメラ（小窓）
+=========================== */
+let cameraOn = false;
+let stream = null;
+let mini = document.getElementById("mini-camera-wrapper");
+let icon = document.getElementById("camera-icon-badge");
+let miniVideo = document.getElementById("mini-video");
+let miniCollapsed = false;
+
+/* カメラ起動 */
+async function startCamera(){
+  if(cameraOn) return;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"environment"}
     });
+    miniVideo.srcObject = stream;
+    cameraOn = true;
 
-    document.getElementById("prev-btn").addEventListener("click", function() {
-      if (!pdfDoc) return;
-      if (currentPage > 1) renderPage(currentPage - 1);
-    });
+    mini.style.display = "block";
+    icon.style.display = "none";
+  }catch(e){
+    alert("カメラを起動できません。Safariの設定を確認してください。");
+  }
+}
 
-    document.getElementById("next-btn").addEventListener("click", function() {
-      if (!pdfDoc) return;
-      if (currentPage < totalPages) renderPage(currentPage + 1);
-    });
+/* カメラ停止 */
+function stopCamera(){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  cameraOn = false;
+  mini.style.display = "none";
+  icon.style.display = "none";
+}
 
-    /* ========== 読書モード切り替え ========== */
-    var readingModeBtn = document.getElementById("reading-mode-btn");
-    var isReadingMode = false;
+/* ミニ画面クリック → 折り畳み */
+mini.addEventListener("click",()=>{
+  if(!cameraOn) return;
+  mini.style.display = "none";
+  icon.style.display = "flex";
+  miniCollapsed = true;
+});
 
-    function enterReadingMode() {
-      document.body.classList.add("reading-mode");
-      readingModeBtn.textContent = "読書モードを解除";
+/* アイコンクリック → 展開 */
+icon.addEventListener("click",()=>{
+  if(!cameraOn) startCamera();
+  icon.style.display = "none";
+  mini.style.display = "block";
+  miniCollapsed = false;
+});
+
+/* ページ読み込み後すぐカメラを開始 */
+startCamera();
+
+/* ===========================
+   QRコード解析
+=========================== */
+function scanLoop(){
+  if(!cameraOn) return requestAnimationFrame(scanLoop);
+
+  const vw = miniVideo.videoWidth;
+  const vh = miniVideo.videoHeight;
+  if(!vw || !vh) return requestAnimationFrame(scanLoop);
+
+  const temp = document.createElement("canvas");
+  temp.width = vw; temp.height = vh;
+  const ctx = temp.getContext("2d");
+  ctx.drawImage(miniVideo,0,0);
+
+  const imgData = ctx.getImageData(0,0,vw,vh);
+  const qr = jsQR(imgData.data, vw, vh);
+
+  if(qr){
+    const text = qr.data.trim();
+    if(text.startsWith("PAGE:")){
+      const num = parseInt(text.replace("PAGE:",""));
+      jumpToPage(num);
     }
+  }
 
-    function exitReadingMode() {
-      document.body.classList.remove("reading-mode");
-      readingModeBtn.textContent = "読書モードにする";
-    }
+  requestAnimationFrame(scanLoop);
+}
 
-    readingModeBtn.addEventListener("click", function() {
-      isReadingMode = !isReadingMode;
-      if (isReadingMode) {
-        // 这里不再强制 stopCamera()，读书模式也可以用相机
-        enterReadingMode();
-      } else {
-        exitReadingMode();
-      }
-    });
+scanLoop();
 
-    /* ========== QR カメラ & jsQR ========== */
-    var cameraOn = false;
-    var stream = null;
-
-    var video = document.getElementById("video");
-    var qrCanvas = document.getElementById("qr-canvas");
-    var qrCtx = qrCanvas.getContext("2d");
-    var qrLog = document.getElementById("qr-log");
-    var toggleCameraBtn = document.getElementById("toggle-camera");
-
-    var lastScanData = "";
-    var lastScanTime = 0;
-
-    function startCamera() {
-      if (cameraOn) return;
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("このブラウザはカメラに対応していません。");
-        return;
-      }
-      if (!pdfDoc) {
-        alert("先にPDFを読み込んでください。");
-        return;
-      }
-
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false
-      }).then(function(s) {
-        stream = s;
-        video.srcObject = stream;
-        cameraOn = true;
-        toggleCameraBtn.textContent = "カメラ停止";
-        toggleCameraBtn.classList.add("danger");
-        qrLog.textContent = "状態：カメラ起動中（QRコードをかざしてください）";
-        scanLoop();
-      }).catch(function(e) {
-        console.error(e);
-        alert("カメラを起動できませんでした。権限を確認してください。");
-      });
-    }
-
-    function stopCamera() {
-      if (stream) {
-        stream.getTracks().forEach(function(t) { t.stop(); });
-      }
-      stream = null;
-      cameraOn = false;
-      video.srcObject = null;
-      toggleCameraBtn.textContent = "カメラ起動";
-      toggleCameraBtn.classList.remove("danger");
-      qrLog.textContent = "状態：カメラ停止中";
-    }
-
-    toggleCameraBtn.addEventListener("click", function() {
-      if (cameraOn) stopCamera();
-      else startCamera();
-    });
-
-    function scanLoop() {
-      if (!cameraOn) return;
-
-      var vw = video.videoWidth;
-      var vh = video.videoHeight;
-      if (!vw || !vh) {
-        requestAnimationFrame(scanLoop);
-        return;
-      }
-
-      qrCanvas.width = vw;
-      qrCanvas.height = vh;
-      qrCtx.drawImage(video, 0, 0, vw, vh);
-      var imgData = qrCtx.getImageData(0, 0, vw, vh);
-
-      var code = jsQR(imgData.data, vw, vh);
-      if (code && code.data) {
-        var now = Date.now();
-        var dataStr = String(code.data);
-
-        // 防抖：和上次一样且间隔太短就忽略
-        if (dataStr !== lastScanData || now - lastScanTime > 1500) {
-          lastScanData = dataStr;
-          lastScanTime = now;
-
-          qrLog.textContent = "QR検出：" + dataStr;
-
-          var pageNum = parseInt(dataStr, 10);
-          if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
-            // ⭐ 如果页码没变，不翻页
-            if (pageNum === currentPage) {
-              qrLog.textContent = "QR検出：" + dataStr + "（同じページのため何もしません）";
-            } else {
-              renderPage(pageNum);
-            }
-          } else {
-            qrLog.textContent = "QR検出：" + dataStr + "（有効なページ番号ではありません）";
-          }
-        }
-      }
-
-      requestAnimationFrame(scanLoop);
-    }
-  </script>
+</script>
 </body>
 </html>

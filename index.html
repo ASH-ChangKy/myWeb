@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
   <!-- Tesseract.js（本地 OCR） -->
   <script src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
@@ -204,10 +204,9 @@
 
   <script>
     // ========= PDF.js 基本设置 =========
-    const pdfjsLib = window['pdfjsLib'];
-    // 使用 CDN worker
+    const pdfjsLib = window['pdfjsLib']; // 2.x 会在 window 上挂 pdfjsLib
     pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.8.69/pdf.worker.min.js';
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     let pdfDoc = null;
     let currentPage = 1;
